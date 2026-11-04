@@ -2541,6 +2541,7 @@ void Session::sendHistoryChangeNotifications() {
 }
 
 void Session::notifyPinnedDialogsOrderUpdated() {
+	chatsFilters().refreshPeoplePinned();
 	_pinnedDialogsOrderUpdated.fire({});
 }
 
@@ -2751,6 +2752,9 @@ void Session::setChatPinned(
 		Dialogs::Key key,
 		FilterId filterId,
 		bool pinned) {
+	if (filterId == kPeopleFilterId) {
+		filterId = 0;
+	}
 	Expects(key.entry()->folderKnown());
 
 	const auto list = (filterId
@@ -5681,7 +5685,7 @@ void Session::refreshChatListEntry(Dialogs::Key key) {
 	if (!history) {
 		return;
 	}
-	for (const auto &filter : _chatsFilters->list()) {
+	for (const auto &filter : _chatsFilters->displayList()) {
 		const auto id = filter.id();
 		if (!id) {
 			continue;
@@ -5721,6 +5725,7 @@ void Session::refreshChatListEntry(Dialogs::Key key) {
 		//	}
 		//}
 	}
+	chatsFilters().refreshPeoplePinned();
 }
 
 void Session::refreshChatListUnreadOnTop() {
@@ -5748,7 +5753,7 @@ void Session::removeChatListEntry(Dialogs::Key key) {
 	}
 	Assert(entry->folderKnown());
 
-	for (const auto &filter : _chatsFilters->list()) {
+	for (const auto &filter : _chatsFilters->displayList()) {
 		const auto id = filter.id();
 		if (id && entry->inChatList(id)) {
 			entry->removeFromChatList(id, chatsFilters().chatsList(id));
@@ -5761,6 +5766,7 @@ void Session::removeChatListEntry(Dialogs::Key key) {
 	}
 	const auto mainList = chatsListFor(entry);
 	entry->removeFromChatList(0, mainList);
+	chatsFilters().refreshPeoplePinned();
 	_chatListEntryRefreshes.fire(ChatListEntryRefresh{
 		.key = key,
 		.existenceChanged = true

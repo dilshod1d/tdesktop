@@ -1139,7 +1139,7 @@ void InnerWidget::paintEvent(QPaintEvent *e) {
 				- st::dialogsUnreadPadding
 				- context.st->nameLeft;
 			auto more = uint8(0);
-			const auto &list = session().data().chatsFilters().list();
+			const auto &list = session().data().chatsFilters().displayList();
 			for (const auto &filter : list) {
 				if (!row->entry()->inChatList(filter.id())
 					|| (filter.id() == context.filter)) {
@@ -5008,7 +5008,8 @@ void InnerWidget::refreshEmpty() {
 			: EmptyState::None)
 		: (!_filterId && data->contactsLoaded().current())
 		? EmptyState::NoContacts
-		: (_filterId > 0) && data->chatsList()->loaded()
+		: (_filterId > 0 || _filterId == Data::kPeopleFilterId)
+			&& data->chatsList()->loaded()
 		? EmptyState::EmptyFolder
 		: EmptyState::Loading;
 	if (state == EmptyState::None) {
@@ -5042,7 +5043,7 @@ void InnerWidget::refreshEmpty() {
 		: tr::lng_contacts_loading();
 	auto link = (state == EmptyState::NoContacts)
 		? tr::lng_add_contact_button()
-		: (state == EmptyState::EmptyFolder)
+		: (state == EmptyState::EmptyFolder && _filterId != Data::kPeopleFilterId)
 		? tr::lng_filters_context_edit()
 		: (state == EmptyState::EmptyForum)
 		? tr::lng_forum_create_topic()
@@ -5655,7 +5656,7 @@ void InnerWidget::switchToFilter(FilterId filterId) {
 	if (_controller->windowId().type != Window::SeparateType::Primary) {
 		return;
 	}
-	const auto &list = session().data().chatsFilters().list();
+	const auto &list = session().data().chatsFilters().displayList();
 	const auto filterIt = filterId
 		? ranges::find(list, filterId, &Data::ChatFilter::id)
 		: end(list);
@@ -6304,7 +6305,8 @@ void InnerWidget::setupShortcuts() {
 
 		if (session().data().chatsFilters().has()) {
 			const auto filters = &session().data().chatsFilters();
-			const auto filtersCount = int(filters->list().size());
+			const auto displayFilters = filters->displayList();
+			const auto filtersCount = int(displayFilters.size());
 			auto &&folders = ranges::views::zip(
 				Shortcuts::kShowFolder,
 				ranges::views::ints(0, ranges::unreachable));
@@ -6312,10 +6314,10 @@ void InnerWidget::setupShortcuts() {
 				const auto select = (command == Command::ShowFolderLast)
 					? (filtersCount - 1)
 					: std::clamp(index, 0, filtersCount - 1);
+				const auto selectedId = displayFilters[select].id();
 				request->check(command) && request->handle([=] {
-					if (select <= filtersCount) {
-						_controller->setActiveChatsFilter(
-							filters->lookupId(select));
+					if (select < filtersCount) {
+						_controller->setActiveChatsFilter(selectedId);
 					}
 					return true;
 				});

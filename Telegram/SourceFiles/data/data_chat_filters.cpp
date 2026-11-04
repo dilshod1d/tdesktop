@@ -17,6 +17,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_folder.h"
 #include "data/data_histories.h"
 #include "dialogs/dialogs_main_list.h"
+#include "dialogs/dialogs_pinned_list.h"
+#include "lang/lang_keys.h"
 #include "history/history.h"
 #include "history/history_unread_things.h"
 #include "ui/ui_utility.h"
@@ -226,6 +228,7 @@ ChatFilter ChatFilter::withoutAlways(not_null<History*> history) const {
 }
 
 MTPDialogFilter ChatFilter::tl(FilterId replaceId) const {
+	Expects(_id != kPeopleFilterId);
 	auto always = _always;
 	auto pinned = QVector<MTPInputPeer>();
 	pinned.reserve(_pinned.size());
@@ -339,6 +342,22 @@ const base::flat_set<not_null<History*>> &ChatFilter::never() const {
 bool ChatFilter::contains(
 		not_null<History*> history,
 		bool ignoreFakeUnread) const {
+	if (_id == kPeopleFilterId) {
+		const auto user = history->peer->asUser();
+		return user
+			&& !user->isSelf()
+			&& !user->isBot()
+			&& !user->isSupport()
+			&& !user->isServiceUser()
+			&& !user->isNotificationsUser()
+			&& !user->isRepliesChat()
+			&& !user->isVerifyCodes()
+			&& !user->isFreezeAppealChat()
+			&& !user->isSavedHiddenAuthor()
+			&& history->inChatList()
+			&& history->folderKnown()
+			&& !history->folder();
+	}
 	const auto flag = [&] {
 		const auto peer = history->peer;
 		if (const auto user = peer->asUser()) {
@@ -415,6 +434,7 @@ not_null<Dialogs::MainList*> ChatFilters::chatsList(FilterId filterId) {
 void ChatFilters::clear() {
 	_chatsLists.clear();
 	_list.clear();
+	_peoplePinned.clear();
 }
 
 void ChatFilters::setPreloaded(
@@ -878,7 +898,9 @@ void ChatFilters::saveOrder(
 	auto ids = QVector<MTPint>();
 	ids.reserve(order.size());
 	for (const auto id : order) {
-		ids.push_back(MTP_int(id));
+		if (id != kPeopleFilterId) {
+			ids.push_back(MTP_int(id));
+		}
 	}
 	const auto wrapped = MTP_vector<MTPint>(ids);
 
@@ -899,6 +921,45 @@ bool ChatFilters::archiveNeeded() const {
 
 const std::vector<ChatFilter> &ChatFilters::list() const {
 	return _list;
+}
+
+std::vector<ChatFilter> ChatFilters::displayList(bool includePeople) const {
+	auto result = _list;
+	if (!includePeople) {
+		return result;
+	}
+	if (result.empty()) {
+		result.emplace_back();
+	}
+	result.insert(begin(result) + 1, ChatFilter(
+		kPeopleFilterId,
+		{ tr::lng_filters_people(tr::now, tr::marked), true },
+		u"👤"_q,
+		std::nullopt,
+		ChatFilter::Flag::Contacts | ChatFilter::Flag::NonContacts
+			| ChatFilter::Flag::NoArchived,
+		{},
+		_peoplePinned,
+		{}));
+	return result;
+}
+
+void ChatFilters::refreshPeoplePinned() {
+	const auto filters = displayList();
+	const auto &people = filters[1];
+	auto pinned = std::vector<not_null<History*>>();
+	for (const auto &key : _owner->pinnedChatsOrder(static_cast<Folder*>(nullptr))) {
+		if (const auto history = key.history()) {
+			if (people.contains(history)) {
+				pinned.push_back(history);
+			}
+		}
+	}
+	if (_peoplePinned == pinned) {
+		return;
+	}
+	_peoplePinned = std::move(pinned);
+	chatsList(kPeopleFilterId)->pinned()->applyList(_peoplePinned);
 }
 
 FilterId ChatFilters::defaultId() const {
@@ -924,7 +985,7 @@ bool ChatFilters::loaded() const {
 }
 
 bool ChatFilters::has() const {
-	return _list.size() > 1;
+	return true;
 }
 
 rpl::producer<> ChatFilters::changed() const {

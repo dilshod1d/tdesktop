@@ -2060,7 +2060,7 @@ rpl::producer<> SessionController::filtersMenuChanged() const {
 void SessionController::checkOpenedFilter() {
 	activateFirstChatsFilter();
 	if (const auto filterId = activeChatsFilterCurrent()) {
-		const auto &list = session().data().chatsFilters().list();
+		const auto &list = session().data().chatsFilters().displayList();
 		const auto i = ranges::find(list, filterId, &Data::ChatFilter::id);
 		if (i == end(list)) {
 			setActiveChatsFilter(
@@ -4159,7 +4159,8 @@ bool CheckAndJumpToNearChatsFilter(
 		bool jump) {
 	const auto id = controller->activeChatsFilterCurrent();
 	const auto session = &controller->session();
-	const auto list = &session->data().chatsFilters().list();
+	const auto &displayList = session->data().chatsFilters().displayList();
+	const auto list = &displayList;
 	const auto index = int(ranges::find(
 		*list,
 		id,
@@ -4172,7 +4173,7 @@ bool CheckAndJumpToNearChatsFilter(
 	if (changed >= int(list->size()) || changed < 0) {
 		return false;
 	}
-	if (changed > Data::PremiumLimits(session).dialogFiltersCurrent()) {
+	if (changed > Data::PremiumLimits(session).dialogFiltersCurrent() + 1) {
 		return false;
 	}
 	if (jump) {

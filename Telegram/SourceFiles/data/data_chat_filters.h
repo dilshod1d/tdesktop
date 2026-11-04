@@ -23,6 +23,8 @@ struct MoreChatsBarContent;
 
 namespace Data {
 
+inline constexpr auto kPeopleFilterId = FilterId(-2);
+
 class Session;
 
 struct ChatFilterTitle {
@@ -162,6 +164,8 @@ public:
 	void remove(FilterId id);
 	void moveAllToFront();
 	[[nodiscard]] const std::vector<ChatFilter> &list() const;
+	[[nodiscard]] std::vector<ChatFilter> displayList(bool includePeople = true) const;
+	void refreshPeoplePinned();
 	[[nodiscard]] rpl::producer<> changed() const;
 	[[nodiscard]] rpl::producer<FilterId> isChatlistChanged() const;
 	[[nodiscard]] rpl::producer<TagColorChanged> tagColorChanged() const;
@@ -237,6 +241,7 @@ private:
 	const not_null<Session*> _owner;
 
 	std::vector<ChatFilter> _list;
+	std::vector<not_null<History*>> _peoplePinned;
 	base::flat_map<FilterId, std::unique_ptr<Dialogs::MainList>> _chatsLists;
 	rpl::event_stream<> _listChanged;
 	rpl::event_stream<FilterId> _isChatlistChanged;

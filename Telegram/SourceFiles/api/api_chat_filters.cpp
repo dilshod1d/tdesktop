@@ -7,6 +7,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "api/api_chat_filters.h"
 
+#include "dialogs/dialogs_main_list.h"
+#include "dialogs/dialogs_pinned_list.h"
+
 #include "api/api_text_entities.h"
 #include "apiwrap.h"
 #include "base/event_filter.h"
@@ -870,6 +873,27 @@ void ProcessFilterInvite(
 void SaveNewFilterPinned(
 		not_null<Main::Session*> session,
 		FilterId filterId) {
+	if (filterId == Data::kPeopleFilterId) {
+		const auto pinned = session->data().chatsList()->pinned();
+		const auto original = pinned->order();
+		const auto desired = session->data().pinnedChatsOrder(filterId)
+			| ranges::views::filter([&](const Dialogs::Key &key) {
+				return ranges::contains(original, key);
+			}) | ranges::to_vector;
+		auto next = begin(desired);
+		for (auto i = 0; i != original.size(); ++i) {
+			if (ranges::contains(desired, original[i])) {
+				const auto key = *next++;
+				if (pinned->order()[i] != key) {
+					pinned->reorder(pinned->order()[i], key);
+				}
+			}
+		}
+		session->data().notifyPinnedDialogsOrderUpdated();
+		session->api().savePinnedOrder(static_cast<Data::Folder*>(nullptr));
+		return;
+	}
+
 	const auto &order = session->data().pinnedChatsOrder(filterId);
 	auto &filters = session->data().chatsFilters();
 	const auto &filter = filters.applyUpdatedPinned(filterId, order);

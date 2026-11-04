@@ -2544,7 +2544,7 @@ void Widget::switchToChatsFilter(FilterId id) {
 		_inner->switchToFilter(id);
 		return;
 	}
-	const auto &list = session().data().chatsFilters().list();
+	const auto &list = session().data().chatsFilters().displayList();
 	const auto indexOf = [&](FilterId filterId) {
 		return int(ranges::find(list, filterId, &Data::ChatFilter::id)
 			- begin(list));

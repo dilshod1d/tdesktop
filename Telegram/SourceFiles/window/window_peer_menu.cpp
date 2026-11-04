@@ -4637,7 +4637,7 @@ void TogglePinnedThread(
 		not_null<Dialogs::Entry*> entry,
 		FilterId filterId,
 		Fn<void()> onToggled) {
-	if (!filterId) {
+	if (!filterId || filterId == Data::kPeopleFilterId) {
 		return TogglePinnedThread(controller, entry, onToggled);
 	}
 	const auto history = entry->asHistory();
