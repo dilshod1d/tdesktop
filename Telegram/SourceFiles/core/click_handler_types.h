@@ -50,6 +50,16 @@ class SessionController;
 // put into such a link would log the user in to the sender's account.
 [[nodiscard]] QString UrlWithoutWebAuthTokens(const QString &url);
 
+enum class LocalLinkRisk {
+	None,
+	Login,
+	Direction,
+	Mixed,
+};
+
+[[nodiscard]] LocalLinkRisk GetLocalLinkRisk(const QString &url);
+[[nodiscard]] bool ShowLocalLinkWarning(const QString &url, QVariant context);
+
 class PeerData;
 struct ClickHandlerContext {
 	FullMsgId itemId;
@@ -67,6 +77,7 @@ struct ClickHandlerContext {
 	bool dark = false;
 	// Is filled from peer info.
 	PeerData *peer = nullptr;
+	QString localLinkConfirmedUrl;
 };
 Q_DECLARE_METATYPE(ClickHandlerContext);
 

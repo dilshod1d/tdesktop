@@ -78,7 +78,20 @@ void ConfirmDontWarnBox(
 void LaunchWithWarning(
 		// not_null<Window::Controller*> controller,
 		const QString &name,
-		HistoryItem *item) {
+		HistoryItem *item,
+		bool isApk) {
+	if (isApk) {
+		Ui::show(Ui::MakeConfirmBox({
+			.text = tr::lng_local_safety_apk(),
+			.confirmed = [=](Fn<void()> close) {
+				close();
+				File::Launch(name);
+			},
+			.confirmText = tr::lng_continue(),
+			.title = tr::lng_local_safety_apk_title(),
+		}));
+		return;
+	}
 	const auto nameType = Core::DetectNameType(name);
 	const auto isIpReveal = (nameType != Core::NameType::Executable)
 		&& Core::IsIpRevealingPath(name);
@@ -239,6 +252,25 @@ void ResolveDocument(
 	if (document->isNull()) {
 		return;
 	}
+	const auto isApk = document->filename().trimmed().endsWith(
+		u".apk"_q,
+		Qt::CaseInsensitive)
+		|| document->mimeString().section(';', 0, 0).trimmed().compare(
+			u"application/vnd.android.package-archive"_q,
+			Qt::CaseInsensitive) == 0;
+	if (isApk) {
+		document->saveFromDataSilent();
+		const auto path = document->filepath(true);
+		if (!path.isEmpty()) {
+			LaunchWithWarning(path, item, true);
+		} else if (document->status == FileReady
+			|| document->status == FileDownloadFailed) {
+			DocumentSaveClickHandler::Save(
+				item ? item->fullId() : Data::FileOrigin(),
+				document);
+		}
+		return;
+	}
 	const auto msgId = item ? item->fullId() : FullMsgId();
 
 	const auto showDocument = [&] {
@@ -296,7 +328,7 @@ void ResolveDocument(
 				context = QVariant::fromValue(clickHandlerContext);
 			}
 			if (!Core::App().iv().showMarkdown(path, context)) {
-				LaunchWithWarning(path, item);
+				LaunchWithWarning(path, item, false);
 			}
 		} else if (document->status == FileReady
 			|| document->status == FileDownloadFailed) {

@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/click_handler_types.h"
 
 #include "base/unixtime.h"
+#include "boxes/abstract_box.h"
 #include "lang/lang_keys.h"
 #include "chat_helpers/bot_command.h"
 #include "core/application.h"
@@ -389,6 +390,85 @@ void DoneSetReminder(std::shared_ptr<ChatHelpers::Show> show) {
 
 } // namespace
 
+LocalLinkRisk GetLocalLinkRisk(const QString &url) {
+	const auto parsed = QUrl::fromUserInput(url);
+	const auto scheme = parsed.scheme().toLower();
+	if (!parsed.isValid()
+		|| (scheme != u"http"_q && scheme != u"https"_q)) {
+		return LocalLinkRisk::None;
+	}
+	if (!parsed.userInfo().isEmpty()) {
+		return LocalLinkRisk::Login;
+	}
+	const auto decoded = QUrl::fromPercentEncoding(url.toUtf8());
+	for (const auto ch : decoded) {
+		const auto code = ch.unicode();
+		if ((code >= 0x202A && code <= 0x202E)
+			|| (code >= 0x2066 && code <= 0x2069)) {
+			return LocalLinkRisk::Direction;
+		}
+	}
+	const auto host = QString::fromStdString(ada::idna::to_unicode(
+		parsed.host(QUrl::FullyEncoded).toStdString()));
+	for (const auto &label : host.split('.')) {
+		auto scripts = 0;
+		for (const auto ch : label.toUcs4()) {
+			switch (QChar::script(ch)) {
+			case QChar::Script_Latin: scripts |= 1; break;
+			case QChar::Script_Cyrillic: scripts |= 2; break;
+			case QChar::Script_Greek: scripts |= 4; break;
+			default: break;
+			}
+		}
+		if (scripts && (scripts & (scripts - 1))) {
+			return LocalLinkRisk::Mixed;
+		}
+	}
+	return LocalLinkRisk::None;
+}
+
+bool ShowLocalLinkWarning(const QString &url, QVariant context) {
+	auto my = context.value<ClickHandlerContext>();
+	const auto risk = GetLocalLinkRisk(url);
+	if (my.localLinkConfirmedUrl == url || risk == LocalLinkRisk::None) {
+		return false;
+	}
+	const auto parsed = QUrl::fromUserInput(url);
+	const auto reason = (risk == LocalLinkRisk::Login)
+		? tr::lng_local_safety_link_login()
+		: (risk == LocalLinkRisk::Direction)
+		? tr::lng_local_safety_link_direction()
+		: tr::lng_local_safety_link_mixed();
+	const auto destination = parsed.host(QUrl::FullyEncoded);
+	const auto display = QString::fromUtf8(parsed.toEncoded());
+	const auto text = rpl::combine(
+		reason,
+		tr::lng_local_safety_destination(lt_domain, rpl::single(destination))
+	) | rpl::map([=](const QString &reason, const QString &target) {
+		return reason + u"\n\n"_q + target
+			+ u"\n\n"_q + display;
+	});
+	my.localLinkConfirmedUrl = url;
+	const auto confirmedContext = QVariant::fromValue(my);
+	auto box = Ui::MakeConfirmBox({
+		.text = text,
+		.confirmed = [=](Fn<void()> close) {
+			close();
+			UrlClickHandler::Open(url, confirmedContext);
+		},
+		.confirmText = tr::lng_open_link(),
+		.labelStyle = my.dark ? &st::groupCallBoxLabel : nullptr,
+		.title = tr::lng_local_safety_link_title(),
+	});
+	if (my.show) {
+		my.show->showBox(std::move(box));
+	} else {
+		Core::App().hideMediaView();
+		Ui::show(std::move(box));
+	}
+	return true;
+}
+
 bool UrlRequiresConfirmation(
 		not_null<Main::Session*> session,
 		const QUrl &url) {
@@ -465,6 +545,9 @@ QString HiddenUrlClickHandler::dragText() const {
 }
 
 void HiddenUrlClickHandler::Open(QString url, QVariant context) {
+	if (ShowLocalLinkWarning(url, context)) {
+		return;
+	}
 	if (const auto external = UrlClickHandler::ExternalUrlFromInternalUrl(url);
 			!external.isEmpty()) {
 		url = external;

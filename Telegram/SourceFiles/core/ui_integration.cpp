@@ -415,6 +415,9 @@ std::shared_ptr<ClickHandler> UiIntegration::createLinkHandler(
 bool UiIntegration::handleUrlClick(
 		const QString &original,
 		const QVariant &context) {
+	if (ShowLocalLinkWarning(original, context)) {
+		return true;
+	}
 	// Only our own token may be added below, never one that came with it,
 	// unless the url itself was given to us by the server for this login.
 	const auto url = context.value<ClickHandlerContext>().keepWebAuthTokens

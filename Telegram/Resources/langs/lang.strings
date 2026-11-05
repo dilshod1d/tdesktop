@@ -5261,6 +5261,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_about_random_stake" = "Stake: {amount}";
 "lng_about_random_stake_change" = "change";
 
+"lng_local_safety_link_title" = "Check this link";
+"lng_local_safety_link_login" = "This address includes a login part before its destination, which can hide the actual website. Check the destination before continuing. This does not mean the link is malicious.";
+"lng_local_safety_link_direction" = "This address contains hidden text direction controls, which can disguise its destination. Check the destination before continuing. This does not mean the link is malicious.";
+"lng_local_safety_link_mixed" = "This website name mixes letters from different alphabets that can look alike. Check the destination before continuing. This does not mean the link is malicious.";
+"lng_local_safety_destination" = "Destination: {domain}";
+"lng_local_safety_apk_title" = "Android app file";
+"lng_local_safety_apk" = "APK files can install apps on Android. Malicious apps can steal information. Continue only if you expected this file and verified its source. This warning does not mean the file is malware.";
 "lng_open_this_link" = "Open this link?";
 "lng_open_link" = "Open";
 "lng_open_link_suspicious_chars" = "Highlighted characters are from a different alphabet than the rest of the address.";
